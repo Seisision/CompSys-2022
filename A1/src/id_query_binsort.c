@@ -20,7 +20,7 @@ struct index_record {
 };
 
 
-struct indexed_data* mk_indexed(struct record* rs, int n) {
+struct indexed_data* mk_sort_indexed(struct record* rs, int n) {
     struct index_record *irs = (struct index_record*)malloc(sizeof(struct index_record)*n);
 
     for(int i = 0; i < n; i++) {
@@ -33,27 +33,24 @@ struct indexed_data* mk_indexed(struct record* rs, int n) {
     data->n = n;
     data->irs = irs;
 
+    // TO DO sort by osm_id (use qsort())
+
     return data;
 }
 
-void free_indexed(struct indexed_data* data) {
+void free_sort_indexed(struct indexed_data* data) {
     free(data->irs);
     free(data);
 }
 
-const struct record* lookup_indexed(struct indexed_data *data,int64_t needle) {
-    for(int i = 0; i < (data->n); i++) {
-        if(data->irs[i].osm_id == needle) {
-            return (data->irs[i].record);
-        }
-    }
-    return 0;
+const struct record* lookup_bin(struct indexed_data *data,int64_t needle) {
+    // TODO binary search for needle
 }
 
 
 int main(int argc, char** argv) {
   return id_query_loop(argc, argv,
-                    (mk_index_fn)mk_indexed,
-                    (free_index_fn)free_indexed,
-                    (lookup_fn)lookup_indexed);
+                    (mk_index_fn)mk_sort_indexed,
+                    (free_index_fn)free_sort_indexed,
+                    (lookup_fn)lookup_bin);
 }

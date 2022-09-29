@@ -31,7 +31,7 @@ void free_naive(struct naive_data* data) {
 
 const struct record* lookup_naive(struct naive_data *data, int64_t needle) {
   // TODO
-  for(int i = 0; i < (data->n)-1; i++){
+  for(int i = 0; i < (data->n); i++) {
       if(data->rs[i].osm_id == needle) {
           return &(data->rs[i]);
       }

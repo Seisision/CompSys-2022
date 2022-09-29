@@ -16,17 +16,27 @@ struct naive_data {
 
 struct naive_data* mk_naive(struct record* rs, int n) {
   // TODO
-  assert(0);
+  struct naive_data *data = (struct naive_data*)malloc(sizeof(struct naive_data));
+
+  data->n = n;
+  data->rs = rs;
+  return data;
 }
 
 void free_naive(struct naive_data* data) {
   // TODO
-  assert(0);
+  free(data);
+  return;
 }
 
 const struct record* lookup_naive(struct naive_data *data, int64_t needle) {
   // TODO
-  assert(0);
+  for(int i = 0; i < (data->n)-1; i++){
+      if(data->rs[i].osm_id == needle) {
+          return &(data->rs[i]);
+      }
+  }
+  return 0;
 }
 
 int main(int argc, char** argv) {

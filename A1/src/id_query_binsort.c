@@ -19,6 +19,9 @@ struct index_record {
     const struct record *record;
 };
 
+int compareRecord(const void *a, const void *b) {
+    return (((struct index_record*)a)->osm_id - ((struct index_record*)b)->osm_id);
+}
 
 struct indexed_data* mk_sort_indexed(struct record* rs, int n) {
     struct index_record *irs = (struct index_record*)malloc(sizeof(struct index_record)*n);
@@ -28,12 +31,12 @@ struct indexed_data* mk_sort_indexed(struct record* rs, int n) {
         irs[i].record = &(rs[i]);
     }
 
+    qsort(irs, n, sizeof(struct index_record), compareRecord);
+
     struct indexed_data *data = (struct indexed_data*)malloc(sizeof(struct indexed_data));
 
     data->n = n;
     data->irs = irs;
-
-    // TO DO sort by osm_id (use qsort())
 
     return data;
 }

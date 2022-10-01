@@ -20,12 +20,24 @@ struct naive_data* mk_naive(struct record* rs, int n) {
 }
 
 void free_naive(struct naive_data* data) {
-  assert(0);
+  free(data);
+  return;
   // TODO
 }
 
 const struct record* lookup_naive(struct naive_data *data, double lon, double lat) {
-  assert(0);
+  double distance = 0;
+  struct record *retVal;
+  for(int i = 0; i < (data->n); i++) {
+      double lonDistance = (data->rs[i].lon)-lon;
+      double latDistance = (data->rs[i].lat)-lat;
+      double currentDistance = pow(lonDistance, 2.) + pow(latDistance, 2.);
+      if( currentDistance < distance ) {
+        distance = currentDistance;
+          retVal = &(data->rs[i]);
+      }
+  }
+  return retVal;
   // TODO
 }
 

@@ -48,6 +48,13 @@ void free_sort_indexed(struct indexed_data* data) {
 
 const struct record* lookup_bin(struct indexed_data *data,int64_t needle) {
     // TODO binary search for needle
+    struct index_record *index; 
+    index = (struct index_record*)bsearch(&needle, data->irs, data->n, sizeof(struct index_record),compareRecord);
+    if(index != NULL) {
+        return index->record;
+    } else {
+        return 0;
+    }
 }
 
 

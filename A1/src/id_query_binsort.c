@@ -20,7 +20,16 @@ struct index_record {
 };
 
 int compareRecord(const void *a, const void *b) {
-    return (((struct index_record*)a)->osm_id - ((struct index_record*)b)->osm_id);
+    int64_t _a = ((struct index_record*)a)->osm_id;
+    int64_t _b = ((struct index_record*)b)->osm_id;
+
+    if (_a > _b) {
+        return 1;
+    } else if (_a < _b) {
+        return -1;
+    } else {
+        return 0;
+    }
 }
 
 struct indexed_data* mk_sort_indexed(struct record* rs, int n) {
@@ -47,7 +56,6 @@ void free_sort_indexed(struct indexed_data* data) {
 }
 
 const struct record* lookup_bin(struct indexed_data *data,int64_t needle) {
-    // TODO binary search for needle
     struct index_record *index; 
     index = (struct index_record*)bsearch(&needle, data->irs, data->n, sizeof(struct index_record),compareRecord);
     if(index != NULL) {

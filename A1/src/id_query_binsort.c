@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
+#include <math.h>
 
 #include "record.h"
 #include "id_query.h"
@@ -55,15 +56,37 @@ void free_sort_indexed(struct indexed_data* data) {
     free(data);
 }
 
+void *binary_search(struct index_record *A, int n, int64_t needle) {
+    int left = 0;
+    int right = n;
+    while(left < right) {
+        int mid = floor((left + right) / 2);
+        if(A[mid].osm_id < needle) {
+            left = mid + 1;
+        }
+        else if (A[mid].osm_id > needle){
+            right = mid - 1;
+        }
+        else {
+            return &A[mid];
+        }
+    }
+    return NULL;
+}
+
 const struct record* lookup_bin(struct indexed_data *data,int64_t needle) {
     struct index_record *index; 
-    index = (struct index_record*)bsearch(&needle, data->irs, data->n, sizeof(struct index_record),compareRecord);
+    index = (struct index_record*)binary_search((data->irs), (data->n), needle);
     if(index != NULL) {
         return index->record;
     } else {
         return 0;
     }
 }
+
+
+
+
 
 
 int main(int argc, char** argv) {

@@ -58,8 +58,8 @@ void free_sort_indexed(struct indexed_data* data) {
 
 void *binary_search(struct index_record *A, int n, int64_t needle) {
     int left = 0;
-    int right = n;
-    while(left < right) {
+    int right = n-1;
+    while(left <= right) {
         int mid = floor((left + right) / 2);
         if(A[mid].osm_id < needle) {
             left = mid + 1;

@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
+#include <float.h>
+#include <math.h>
 
 #include "record.h"
 #include "coord_query.h"
@@ -27,8 +29,8 @@ void free_naive(struct naive_data* data) {
   return;
 }
 
-const struct record* lookup_naive(struct naive_data *data, double lon, double lat) {
-  double distance = 0;
+const struct record* lookup_coord_naive(struct naive_data *data, double lon, double lat) {
+  double distance = DBL_MAX;
   int retIndex = 0;
 
   for(int i = 0; i < (data->n); i++) {
@@ -48,5 +50,5 @@ int main(int argc, char** argv) {
   return coord_query_loop(argc, argv,
                           (mk_index_fn)mk_naive,
                           (free_index_fn)free_naive,
-                          (lookup_fn)lookup_naive);
+                          (lookup_fn)lookup_coord_naive);
 }

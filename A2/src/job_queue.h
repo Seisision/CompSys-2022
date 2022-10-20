@@ -3,8 +3,17 @@
 
 #include <pthread.h>
 
+
 struct job_queue {
-  int dummy;
+  int capacity;
+  int top;
+  void **jobs;
+  // 0 = false and 1 = true
+  int dead;
+  pthread_cond_t cond_has_space;
+  pthread_cond_t cond_has_job;
+  pthread_mutex_t lock_has_space;
+  pthread_mutex_t lock_has_job;
 };
 
 // Initialise a job queue with the given capacity.  The queue starts out

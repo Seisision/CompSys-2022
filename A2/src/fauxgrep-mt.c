@@ -1,4 +1,4 @@
-// Setting _DEFAULT_SOURCE is necessary to activate visibility of
+ // Setting _DEFAULT_SOURCE is necessary to activate visibility of
 // certain header file contents on GNU/Linux systems.
 #define _DEFAULT_SOURCE
 
@@ -18,6 +18,46 @@
 #include <pthread.h>
 
 #include "job_queue.h"
+
+struct worker_info {
+    struct job_queue *jq;
+    char *needle;
+};
+
+// Each thread will run this function.  The thread argument is a
+// pointer to a worker_info which has a needle and a pointer to a job queue.
+void* worker(void *arg) {
+  struct worker_info *wi = arg;
+  struct job_queue *jq = wi->jq;
+  char *filename;
+  int pop_result = 0;
+  char buffer[1024];
+
+  
+  while(pop_result >= 0) {
+    pop_result = job_queue_pop(jq, &filename);
+    // pop successfull
+    if(pop_result != -1) {
+       FILE *file = fopen(filename, "r");
+       // read file line for line with fget
+       while(1) {
+           char *line = fgets(buffer, 1024, file);
+           // break at file end
+           if (line == 0) {
+               break;
+           } 
+           // needle found
+           if(strstr(line, wi->needle) != -1) {
+                // exclusive access when printing to avoid interveawing of prints to stdout
+                // to do we found it!!! print result
+           }
+       }
+       fclose(file);
+    }
+  }
+
+  return NULL;
+}
 
 int main(int argc, char * const *argv) {
   if (argc < 2) {
@@ -51,7 +91,22 @@ int main(int argc, char * const *argv) {
     paths = &argv[2];
   }
 
-  assert(0); // Initialise the job queue and some worker threads here.
+  // set up job queue
+  struct job_queue jq;
+  job_queue_init(&jq, 64);
+
+  // Setup worker arguments (we can only pass one void pointer)
+  struct worker_info wi;
+  wi.jq = &jq;
+  wi.needle = needle;
+
+  // Start worker threads
+  pthread_t *threads = calloc(num_threads, sizeof(pthread_t));
+  for (int i = 0; i < num_threads; i++) {
+    if (pthread_create(&threads[i], NULL, &worker, &wi) != 0) {
+      err(1, "pthread_create() failed");
+    }
+  }
 
   // FTS_LOGICAL = follow symbolic links
   // FTS_NOCHDIR = do not change the working directory of the process
@@ -72,7 +127,8 @@ int main(int argc, char * const *argv) {
     case FTS_D:
       break;
     case FTS_F:
-      assert(0); // Process the file p->fts_path, somehow.
+      // put filename into job queue
+      job_queue_push(&jq, strdup(p->fts_path));
       break;
     default:
       break;
@@ -82,6 +138,17 @@ int main(int argc, char * const *argv) {
   fts_close(ftsp);
 
   assert(0); // Shut down the job queue and the worker threads here.
+
+  // Destroy the queue.
+  job_queue_destroy(&jq);
+
+  // Wait for all threads to finish.  This is important, at some may
+  // still be working on their job.
+  for (int i = 0; i < num_threads; i++) {
+    if (pthread_join(threads[i], NULL) != 0) {
+      err(1, "pthread_join() failed");
+    }
+  }
 
   return 0;
 }

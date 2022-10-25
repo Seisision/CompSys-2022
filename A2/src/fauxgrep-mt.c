@@ -19,6 +19,9 @@
 
 #include "job_queue.h"
 
+pthread_mutex_t lock_writing_stdout = PTHREAD_MUTEX_INITIALIZER;
+
+
 struct worker_info {
     struct job_queue *jq;
     char *needle;
@@ -31,26 +34,29 @@ void* worker(void *arg) {
   struct job_queue *jq = wi->jq;
   char *filename;
   int pop_result = 0;
-  char buffer[1024];
-
+  char buffer[65792];
   
   while(pop_result >= 0) {
     pop_result = job_queue_pop(jq, &filename);
+    int line_num = 1;
     // pop successfull
     if(pop_result != -1) {
        FILE *file = fopen(filename, "r");
        // read file line for line with fget
        while(1) {
-           char *line = fgets(buffer, 1024, file);
+           char *line = fgets(buffer, 65792, file);
            // break at file end
            if (line == 0) {
                break;
            } 
            // needle found
-           if(strstr(line, wi->needle) != -1) {
+           if(strstr(line, wi->needle) != NULL) {
                 // exclusive access when printing to avoid interveawing of prints to stdout
-                // to do we found it!!! print result
+                pthread_mutex_lock(&lock_writing_stdout);
+                printf("%s:%d: %s", filename, line_num, line);
+                pthread_mutex_unlock(&lock_writing_stdout);
            }
+           line_num++;
        }
        fclose(file);
     }
@@ -137,10 +143,9 @@ int main(int argc, char * const *argv) {
 
   fts_close(ftsp);
 
-  assert(0); // Shut down the job queue and the worker threads here.
-
-  // Destroy the queue.
+  // cleanup. Destroy the queue and mutex.
   job_queue_destroy(&jq);
+  pthread_mutex_destroy(&lock_writing_stdout);
 
   // Wait for all threads to finish.  This is important, at some may
   // still be working on their job.

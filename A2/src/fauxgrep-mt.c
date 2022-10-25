@@ -61,7 +61,6 @@ void* worker(void *arg) {
        fclose(file);
     }
   }
-
   return NULL;
 }
 
@@ -145,7 +144,6 @@ int main(int argc, char * const *argv) {
 
   // cleanup. Destroy the queue and mutex.
   job_queue_destroy(&jq);
-  pthread_mutex_destroy(&lock_writing_stdout);
 
   // Wait for all threads to finish.  This is important, at some may
   // still be working on their job.
@@ -153,7 +151,11 @@ int main(int argc, char * const *argv) {
     if (pthread_join(threads[i], NULL) != 0) {
       err(1, "pthread_join() failed");
     }
+    printf("join");
   }
+  
+  pthread_mutex_destroy(&lock_writing_stdout);
+
 
   return 0;
 }

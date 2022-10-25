@@ -65,13 +65,12 @@ int job_queue_push(struct job_queue *job_queue, void *data) {
 
 int job_queue_pop(struct job_queue *job_queue, void **data) {
 	if (job_queue->top == 0) {
-		// lock and wait until job is available
-		pthread_mutex_lock(&(job_queue->lock_has_job));
-		pthread_cond_wait(&(job_queue->cond_has_job), &(job_queue->lock_has_job));
-
 		if (job_queue->dead == 1) {
 			return -1;
 		}
+		// lock and wait until job is available
+		pthread_mutex_lock(&(job_queue->lock_has_job));
+		pthread_cond_wait(&(job_queue->cond_has_job), &(job_queue->lock_has_job));
 	}
 
 	// pop job from queue

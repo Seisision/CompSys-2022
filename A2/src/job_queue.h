@@ -14,6 +14,7 @@ struct job_queue {
   pthread_cond_t cond_has_job;
   pthread_mutex_t lock_has_space;
   pthread_mutex_t lock_has_job;
+  pthread_mutex_t lock_queue_access;
 };
 
 // Initialise a job queue with the given capacity.  The queue starts out

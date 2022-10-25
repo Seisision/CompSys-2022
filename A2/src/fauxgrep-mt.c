@@ -42,7 +42,7 @@ void* worker(void *arg) {
     // pop successfull
     if(pop_result != -1) {
        FILE *file = fopen(filename, "r");
-       // read file line for line with fget
+       // read file line for line 
        while(1) {
            char *line = fgets(buffer, 65792, file);
            // break at file end
@@ -51,7 +51,7 @@ void* worker(void *arg) {
            } 
            // needle found
            if(strstr(line, wi->needle) != NULL) {
-                // exclusive access when printing to avoid interveawing of prints to stdout
+                // exclusive access when printing to stdout
                 pthread_mutex_lock(&lock_writing_stdout);
                 printf("%s:%d: %s", filename, line_num, line);
                 pthread_mutex_unlock(&lock_writing_stdout);
@@ -100,7 +100,7 @@ int main(int argc, char * const *argv) {
   struct job_queue jq;
   job_queue_init(&jq, 64);
 
-  // Setup worker arguments (we can only pass one void pointer)
+  // Setup worker arguments (we can only pass one void pointer and neelde is not global)
   struct worker_info wi;
   wi.jq = &jq;
   wi.needle = needle;
@@ -142,7 +142,7 @@ int main(int argc, char * const *argv) {
 
   fts_close(ftsp);
 
-  // cleanup. Destroy the queue and mutex.
+  // cleanup. Destroy the queue and mutex and shutdown worker threads.
   job_queue_destroy(&jq);
 
   // Wait for all threads to finish.  This is important, at some may

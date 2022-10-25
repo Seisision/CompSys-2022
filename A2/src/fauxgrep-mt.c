@@ -151,11 +151,9 @@ int main(int argc, char * const *argv) {
     if (pthread_join(threads[i], NULL) != 0) {
       err(1, "pthread_join() failed");
     }
-    printf("join");
   }
   
   pthread_mutex_destroy(&lock_writing_stdout);
-
 
   return 0;
 }

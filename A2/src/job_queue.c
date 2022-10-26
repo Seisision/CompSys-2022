@@ -43,6 +43,8 @@ int job_queue_destroy(struct job_queue *job_queue) {
 	pthread_mutex_destroy(&(job_queue->lock_has_job));
 	pthread_cond_destroy(&(job_queue->cond_has_space));
 	pthread_cond_destroy(&(job_queue->cond_has_job));
+	
+	return 0;
 }
 
 int job_queue_push(struct job_queue *job_queue, void *data) {

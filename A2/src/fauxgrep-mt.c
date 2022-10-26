@@ -24,7 +24,7 @@ pthread_mutex_t lock_writing_stdout = PTHREAD_MUTEX_INITIALIZER;
 
 struct worker_info {
     struct job_queue *jq;
-    char *needle;
+    char const *needle;
 };
 
 // Each thread will run this function.  The thread argument is a
@@ -37,7 +37,7 @@ void* worker(void *arg) {
   char buffer[65792];
   
   while(pop_result >= 0) {
-    pop_result = job_queue_pop(jq, &filename);
+    pop_result = job_queue_pop(jq, (void**)&filename);
     int line_num = 1;
     // pop successfull
     if(pop_result != -1) {

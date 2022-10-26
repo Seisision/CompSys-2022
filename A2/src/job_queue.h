@@ -7,6 +7,7 @@
 struct job_queue {
   int capacity;
   int top;
+  int bottom;
   void **jobs;
   // 0 = false and 1 = true
   int dead;

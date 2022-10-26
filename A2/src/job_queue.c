@@ -12,7 +12,9 @@ int job_queue_init(struct job_queue *job_queue, int capacity) {
 
 	job_queue->capacity = capacity;
 	job_queue->top = 0;
-	job_queue->jobs = malloc(sizeof(void*) * capacity);
+	job_queue->bottom = 0;
+	job_queue->count = 0;
+	job_queue->jobs = calloc(job_queue->capacity, sizeof(void*));
 	job_queue->dead = 0;
 
 	assert(pthread_mutex_init(&(job_queue->lock_queue_access), NULL) == 0);
@@ -28,7 +30,7 @@ int job_queue_destroy(struct job_queue *job_queue) {
 	job_queue->dead = 1;
 
 	// block till queue is empty
-	while (job_queue->top != 0) {
+	while (job_queue->count != 0) {
 		pthread_mutex_lock(&(job_queue->lock_has_space));
 		pthread_cond_wait(&(job_queue->cond_has_space), (&job_queue->lock_has_space));
 		pthread_mutex_unlock(&(job_queue->lock_has_space));
@@ -54,7 +56,7 @@ int job_queue_push(struct job_queue *job_queue, void *data) {
 
 	// lock access mutex as we are going to read from the queue
 	pthread_mutex_lock(&(job_queue->lock_queue_access));
-	if (job_queue->top == job_queue->capacity) {
+	if (job_queue->count == job_queue->capacity) {
 		// unlock access mutex as we are going to wait (we will lock after waking)
 		pthread_mutex_unlock(&(job_queue->lock_queue_access));
 	
@@ -70,7 +72,8 @@ int job_queue_push(struct job_queue *job_queue, void *data) {
 		
 	// push job to queue (access already locked)
 	job_queue->jobs[job_queue->top] = data;
-	job_queue->top += 1;
+	job_queue->count += 1;
+	job_queue->top = (job_queue->top+1) % job_queue->capacity;
 	// unlock access as we are done modifying the queue
 	pthread_mutex_unlock(&(job_queue->lock_queue_access));
 
@@ -84,7 +87,7 @@ int job_queue_pop(struct job_queue *job_queue, void **data) {
 
 	// lock access mutex as we are going to read from the queue
 	pthread_mutex_lock(&(job_queue->lock_queue_access));
-	if (job_queue->top == 0) {
+	if (job_queue->count == 0) {
 		// unlock access mutex as we are going to wait (we will lock after waking)
 		pthread_mutex_unlock(&(job_queue->lock_queue_access));
 		if (job_queue->dead == 1) {
@@ -101,8 +104,10 @@ int job_queue_pop(struct job_queue *job_queue, void **data) {
 	}
 
 	// pop job from queue (access already locked)
-	*data = (job_queue->jobs[job_queue->top-1]);
-	job_queue->top -= 1;
+	*data = (job_queue->jobs[job_queue->bottom]);
+	job_queue->jobs[job_queue->bottom] = NULL;
+	job_queue->count -= 1;
+	job_queue->bottom = (job_queue->bottom+1) % job_queue->capacity;
 	// unlock access as we are done modifying the queue
 	pthread_mutex_unlock(&(job_queue->lock_queue_access));
 

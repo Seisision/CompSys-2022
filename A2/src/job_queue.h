@@ -6,6 +6,7 @@
 
 struct job_queue {
   int capacity;
+  int count;
   int top;
   int bottom;
   void **jobs;

@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdint.h>
 
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fts.h>
@@ -83,6 +84,9 @@ void* display(void *arg) {
 }
 
 int main(int argc, char * const *argv) {
+  struct timeval start_time, end_time;
+  gettimeofday(&start_time, NULL);
+
   if (argc < 2) {
     err(1, "usage: paths...");
     exit(1);
@@ -167,6 +171,7 @@ int main(int argc, char * const *argv) {
 
   // cleanup. Destroy the queue and mutex and shutdown worker threads.
   job_queue_destroy(&jq);
+  
 
   // Wait for all threads to finish.  This is important, at some may
   // still be working on their job.
@@ -177,12 +182,17 @@ int main(int argc, char * const *argv) {
   }
   
   job_queue_destroy(&dq);
-
+  
   if (pthread_join(display_thread, NULL) != 0) {
     err(1, "pthread_join() failed");
   }
  
   move_lines(9);
+
+  gettimeofday(&end_time, NULL);
+  printf("Time to finish histogram: %ld micro seconds\n",
+  ((end_time.tv_sec * 1000000 + end_time.tv_usec) - 
+  (start_time.tv_sec * 1000000 + start_time.tv_usec)));
 
   return 0;
 }

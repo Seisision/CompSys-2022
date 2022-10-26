@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <string.h>
 
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fts.h>
@@ -73,7 +74,8 @@ int main(int argc, char * const *argv) {
   int num_threads = 1;
   char const *needle = argv[1];
   char * const *paths = &argv[2];
-
+  struct timeval start_time, end_time;
+  gettimeofday(&start_time, NULL);
 
   if (argc > 3 && strcmp(argv[1], "-n") == 0) {
     // Since atoi() simply returns zero on syntax errors, we cannot
@@ -153,7 +155,9 @@ int main(int argc, char * const *argv) {
     }
   }
   
-  pthread_mutex_destroy(&lock_writing_stdout);
-
+  gettimeofday(&end_time, NULL);
+  printf("Time to finish histogram: %ld micro seconds\n",
+  ((end_time.tv_sec * 1000000 + end_time.tv_usec) - 
+  (start_time.tv_sec * 1000000 + start_time.tv_usec)));
   return 0;
 }

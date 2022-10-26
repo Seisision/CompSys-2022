@@ -35,8 +35,10 @@ int job_queue_destroy(struct job_queue *job_queue) {
 		pthread_cond_wait(&(job_queue->cond_has_space), (&job_queue->lock_has_space));
 		pthread_mutex_unlock(&(job_queue->lock_has_space));
 	}
+
 	// wake up pending pop jobs
 	pthread_cond_broadcast(&(job_queue->cond_has_job));
+	pthread_mutex_unlock(&(job_queue->lock_has_job));
 
 	// clean up
 	free(job_queue->jobs);
@@ -53,15 +55,13 @@ int job_queue_push(struct job_queue *job_queue, void *data) {
 	if (job_queue->dead == 1) {
 		return -1;
 	}
-
-	// lock access mutex as we are going to read from the queue
 	pthread_mutex_lock(&(job_queue->lock_queue_access));
-	if (job_queue->count == job_queue->capacity) {
+	pthread_mutex_lock(&(job_queue->lock_has_space));
+	while (job_queue->count == job_queue->capacity) {
 		// unlock access mutex as we are going to wait (we will lock after waking)
 		pthread_mutex_unlock(&(job_queue->lock_queue_access));
 	
 		// lock wait for space mutex and wait until space is available
-		pthread_mutex_lock(&(job_queue->lock_has_space));
 		pthread_cond_wait(&(job_queue->cond_has_space), &(job_queue->lock_has_space));
 
 		// thread has been woken!
@@ -78,8 +78,9 @@ int job_queue_push(struct job_queue *job_queue, void *data) {
 	pthread_mutex_unlock(&(job_queue->lock_queue_access));
 
 	// unlock wait for space mutex and signal job is available
-	pthread_mutex_unlock(&(job_queue->lock_has_space));
 	pthread_cond_signal(&(job_queue->cond_has_job));
+	pthread_mutex_unlock(&(job_queue->lock_has_space));
+	pthread_mutex_unlock(&(job_queue->lock_has_job));
 	return 0;
 }
 
@@ -87,18 +88,21 @@ int job_queue_pop(struct job_queue *job_queue, void **data) {
 
 	// lock access mutex as we are going to read from the queue
 	pthread_mutex_lock(&(job_queue->lock_queue_access));
-	if (job_queue->count == 0) {
-		// unlock access mutex as we are going to wait (we will lock after waking)
-		pthread_mutex_unlock(&(job_queue->lock_queue_access));
+	pthread_mutex_lock(&(job_queue->lock_has_job));
+	while (job_queue->count == 0) {
 		if (job_queue->dead == 1) {
+			// unlock access mutex
+			pthread_mutex_unlock(&(job_queue->lock_queue_access));
+			pthread_mutex_unlock(&(job_queue->lock_has_job));
+		
 			return -1;
 		}
-		// lock wait for job mutex and wait until job is available
-		pthread_mutex_lock(&(job_queue->lock_has_job));
+		// unlock access mutex as we are going to wait (we will lock after waking)
+		pthread_mutex_unlock(&(job_queue->lock_queue_access));
 		pthread_cond_wait(&(job_queue->cond_has_job), &(job_queue->lock_has_job));
 
 		// thread has been woken!
-
+				
 		// lock access mutex as we are going to modify the queue
 		pthread_mutex_lock(&(job_queue->lock_queue_access));
 	}
@@ -112,7 +116,9 @@ int job_queue_pop(struct job_queue *job_queue, void **data) {
 	pthread_mutex_unlock(&(job_queue->lock_queue_access));
 
 	// unlock wait for job mutex and signal space is available
-	pthread_mutex_unlock(&(job_queue->lock_has_job));
 	pthread_cond_signal(&(job_queue->cond_has_space));	
+	pthread_mutex_unlock(&(job_queue->lock_has_job));
+	pthread_mutex_unlock(&(job_queue->lock_has_space));
+	 
 	return 0;
 }

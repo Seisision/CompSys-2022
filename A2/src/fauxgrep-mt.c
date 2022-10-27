@@ -9,7 +9,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <fts.h>
+#include <fts.h> 
 
 // err.h contains various nonstandard BSD extensions, but they are
 // very handy.
@@ -59,6 +59,7 @@ void* worker(void *arg) {
         line_num++;
        }
       fclose(file);
+      free(filename);
     }
   }
   return NULL;

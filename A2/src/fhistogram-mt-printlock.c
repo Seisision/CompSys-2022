@@ -68,6 +68,7 @@ void* worker(void *arg) {
       pthread_mutex_unlock(&lock_histogram);
 
       fclose(file);
+      free(filename);
     }
   }
   return NULL;

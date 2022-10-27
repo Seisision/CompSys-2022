@@ -21,25 +21,10 @@
 
 #include "histogram.h"
 
-//#define FILE_BUFFER_SIZE 1
 #define FILE_BUFFER_SIZE 4096*8
 
 int global_histogram[8] = { 0 };
 pthread_mutex_t lock_histogram = PTHREAD_MUTEX_INITIALIZER;
-
-
-struct worker_info {
-  struct job_queue *jq;
-  struct job_queue *dq;
-};
-
-void push_histogram(int *local_histogram, struct job_queue *dq) {
-  int *histogram_copy = malloc(8 * sizeof(int));
-  memcpy(histogram_copy, local_histogram, 8 * sizeof(int));
-  job_queue_push(dq, histogram_copy);
-  // reset local histogram
-  memset(local_histogram, 0, 8 * sizeof(int));
-}
 
 // Each thread will run this function.  The thread argument is a
 // pointer to a worker_info which has a needle and a pointer to a job queue.
@@ -53,28 +38,36 @@ void* worker(void *arg) {
     int i = 0;
     int local_histogram[8] = { 0 };
     pop_result = job_queue_pop(jq, (void**)&filename);
-    // pop successfull
     if(pop_result != -1) {
+      // pop successfull we have a file to process
       FILE *file = fopen(filename, "r");
       size_t readBytes = 0;
+      // read file in chunks of FILE_BUFFER_SIZE
       do {
         readBytes = fread(buffer, sizeof(char), FILE_BUFFER_SIZE, file);
+        // process each byte of chunk
         for (size_t j = 0; j < readBytes; ++j) {
+          // increment total byte counter
           i++;
           update_histogram(local_histogram, buffer[j]);
+          // only merge and print histogram every 250k bytes
           if ((i % 250000) == 0) {
+            // protect shared resources with mutex
             pthread_mutex_lock(&lock_histogram);
             merge_histogram(local_histogram, global_histogram);
             print_histogram(global_histogram); 
             pthread_mutex_unlock(&lock_histogram);
           }
         }
-      }
+      } 
       while (readBytes > 0);
+
+      // write remaining histogram data
       pthread_mutex_lock(&lock_histogram);
       merge_histogram(local_histogram, global_histogram);
       print_histogram(global_histogram); 
       pthread_mutex_unlock(&lock_histogram);
+
       fclose(file);
     }
   }

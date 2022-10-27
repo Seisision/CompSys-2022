@@ -109,7 +109,7 @@ int job_queue_pop(struct job_queue *job_queue, void **data) {
 
 		// unlock shared data mutex as we are going to wait (we will lock after waking)
 		pthread_mutex_unlock(&(job_queue->lock_queue_access));
-		pthread_cond_wait(&(job_queue->cond_has_job), &(job_queue->lo vck_has_job));
+		pthread_cond_wait(&(job_queue->cond_has_job), &(job_queue->lock_has_job));
 
 		// thread has been woken!
 				

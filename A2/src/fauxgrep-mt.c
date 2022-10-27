@@ -7,7 +7,6 @@
 #include <assert.h>
 #include <string.h>
 
-#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fts.h>

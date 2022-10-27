@@ -22,16 +22,16 @@
 #include "histogram.h"
 
 struct worker_info {
-    struct job_queue *jq;
-    struct job_queue *dq;
+  struct job_queue *jq;
+  struct job_queue *dq;
 };
 
 void push_histogram(int *local_histogram, struct job_queue *dq) {
-    int *histogram_copy = malloc(8 * sizeof(int));
-    memcpy(histogram_copy, local_histogram, 8 * sizeof(int));
-    job_queue_push(dq, histogram_copy);
-    // reset local histogram
-    memset(local_histogram, 0, 8 * sizeof(int));
+  int *histogram_copy = malloc(8 * sizeof(int));
+  memcpy(histogram_copy, local_histogram, 8 * sizeof(int));
+  job_queue_push(dq, histogram_copy);
+  // reset local histogram
+  memset(local_histogram, 0, 8 * sizeof(int));
 }
 
 // Each thread will run this function.  The thread argument is a
@@ -44,43 +44,42 @@ void* worker(void *arg) {
   char buffer;
   int pop_result = 0;
 
-  
-  while(pop_result >= 0) {
+  while (pop_result >= 0) {
     int i = 0;
     int local_histogram[8] = { 0 };
     pop_result = job_queue_pop(jq, (void**)&filename);
     // pop successfull
-    if(pop_result != -1) {
-       FILE *file = fopen(filename, "r");
-       while (fread(&buffer, sizeof(buffer), 1, file) == 1) {
-           i++;
-           update_histogram(local_histogram, buffer);
-           if ((i % 100000) == 0) {
-               push_histogram(local_histogram, dq);
-           }
-       }
-       fclose(file);
-       push_histogram(local_histogram, dq);
+    if (pop_result != -1) {
+      FILE *file = fopen(filename, "r");
+      while (fread(&buffer, sizeof(buffer), 1, file) == 1) {
+        i++;
+        update_histogram(local_histogram, buffer);
+        if ((i % 250000) == 0) {
+          push_histogram(local_histogram, dq);
+        }
+      }
+      fclose(file);
+      push_histogram(local_histogram, dq);
     }
   }
   return NULL;
 }
   
 void* display(void *arg) {
-    struct job_queue *dq = arg;
-    int pop_result = 0;
-    int *local_histogram;
-    int global_histogram[8] = { 0 };
+  struct job_queue *dq = arg;
+  int pop_result = 0;
+  int *local_histogram;
+  int global_histogram[8] = { 0 };
 
-    while (pop_result >= 0) {
-        pop_result = job_queue_pop(dq, (void**)&local_histogram);
-        if (pop_result != -1) {
-            merge_histogram(local_histogram, global_histogram);
-            print_histogram(global_histogram); 
-            free(local_histogram);
-        }
+  while (pop_result >= 0) {
+    pop_result = job_queue_pop(dq, (void**)&local_histogram);
+    if (pop_result != -1) {
+      merge_histogram(local_histogram, global_histogram);
+      print_histogram(global_histogram); 
+      free(local_histogram);
     }
-    return NULL;
+  }
+  return NULL;
 }
 
 int main(int argc, char * const *argv) {

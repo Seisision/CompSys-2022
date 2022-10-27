@@ -24,8 +24,8 @@ pthread_mutex_t lock_writing_stdout = PTHREAD_MUTEX_INITIALIZER;
 
 
 struct worker_info {
-    struct job_queue *jq;
-    char const *needle;
+  struct job_queue *jq;
+  char const *needle;
 };
 
 // Each thread will run this function.  The thread argument is a
@@ -37,35 +37,38 @@ void* worker(void *arg) {
   int pop_result = 0;
   char buffer[65792];
   
-  while(pop_result >= 0) {
+  while (pop_result >= 0) {
     pop_result = job_queue_pop(jq, (void**)&filename);
     int line_num = 1;
     // pop successfull
     if(pop_result != -1) {
-       FILE *file = fopen(filename, "r");
-       // read file line for line 
-       while(1) {
-           char *line = fgets(buffer, 65792, file);
-           // break at file end
-           if (line == 0) {
-               break;
-           } 
-           // needle found
-           if(strstr(line, wi->needle) != NULL) {
-                // exclusive access when printing to stdout
-                pthread_mutex_lock(&lock_writing_stdout);
-                printf("%s:%d: %s", filename, line_num, line);
-                pthread_mutex_unlock(&lock_writing_stdout);
-           }
-           line_num++;
+      FILE *file = fopen(filename, "r");
+      // read file line for line 
+      while (1) {
+        char *line = fgets(buffer, 65792, file);
+        // break at file end
+        if (line == 0) {
+          break;
+        } 
+        // needle found
+        if (strstr(line, wi->needle) != NULL) {
+          // exclusive access when printing to stdout
+          pthread_mutex_lock(&lock_writing_stdout);
+          printf("%s:%d: %s", filename, line_num, line);
+          pthread_mutex_unlock(&lock_writing_stdout);
+        }
+        line_num++;
        }
-       fclose(file);
+      fclose(file);
     }
   }
   return NULL;
 }
 
 int main(int argc, char * const *argv) {
+  struct timeval start_time, end_time;
+  gettimeofday(&start_time, NULL);
+
   if (argc < 2) {
     err(1, "usage: [-n INT] STRING paths...");
     exit(1);
@@ -74,8 +77,6 @@ int main(int argc, char * const *argv) {
   int num_threads = 1;
   char const *needle = argv[1];
   char * const *paths = &argv[2];
-  struct timeval start_time, end_time;
-  gettimeofday(&start_time, NULL);
 
   if (argc > 3 && strcmp(argv[1], "-n") == 0) {
     // Since atoi() simply returns zero on syntax errors, we cannot
@@ -159,5 +160,6 @@ int main(int argc, char * const *argv) {
   printf("Time to finish histogram: %ld micro seconds\n",
   ((end_time.tv_sec * 1000000 + end_time.tv_usec) - 
   (start_time.tv_sec * 1000000 + start_time.tv_usec)));
+
   return 0;
 }

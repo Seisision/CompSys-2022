@@ -53,8 +53,6 @@ int fhistogram(char const *path) {
 }
 
 int main(int argc, char * const *argv) {
-  struct timeval start_time, end_time;
-  gettimeofday(&start_time, NULL);
 
   if (argc < 2) {
     err(1, "usage: paths...");
@@ -92,11 +90,6 @@ int main(int argc, char * const *argv) {
   fts_close(ftsp);
 
   move_lines(9);
-
-  gettimeofday(&end_time, NULL);
-  printf("Time to finish histogram: %ld micro seconds\n",
-  ((end_time.tv_sec * 1000000 + end_time.tv_usec) - 
-  (start_time.tv_sec * 1000000 + start_time.tv_usec)));
 
   return 0;
 }

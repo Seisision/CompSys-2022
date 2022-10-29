@@ -30,7 +30,7 @@ pthread_mutex_t lock_histogram = PTHREAD_MUTEX_INITIALIZER;
 void* worker(void *arg) {
   struct job_queue *jq = arg;
   char *filename;
-  char buffer;
+  char *buffer = malloc(FILE_BUFFER_SIZE*sizeof(char));
   int pop_result = 0;
   
   while(pop_result >= 0) {
@@ -40,10 +40,15 @@ void* worker(void *arg) {
     if(pop_result != -1) {
       // pop successfull we have a file to process
       FILE *file = fopen(filename, "r");
-      while(fread(&buffer, sizeof(buffer), 1, file) == 1) {
+      size_t readBytes = 0;
+      // read file in chunks of FILE_BUFFER_SIZE
+      do {
+        readBytes = fread(buffer, sizeof(char), FILE_BUFFER_SIZE, file);
+        // process each byte of chunk
+        for (size_t j = 0; j < readBytes; ++j) {
           // increment total byte counter
           i++;
-          update_histogram(local_histogram, buffer);
+          update_histogram(local_histogram, buffer[j]);
           // only merge and print histogram every 150k bytes
           if ((i % 150000) == 0) {
             // protect shared resources with mutex
@@ -52,7 +57,10 @@ void* worker(void *arg) {
             print_histogram(global_histogram); 
             pthread_mutex_unlock(&lock_histogram);
           }
-      }
+        }
+      } 
+      while (readBytes > 0);
+
       // write remaining histogram data
       pthread_mutex_lock(&lock_histogram);
       merge_histogram(local_histogram, global_histogram);

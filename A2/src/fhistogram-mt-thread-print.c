@@ -19,56 +19,69 @@
 #include <err.h>
 
 #include "histogram.h"
-
 #define FILE_BUFFER_SIZE 4096*8
 
-int global_histogram[8] = { 0 };
-pthread_mutex_t lock_histogram = PTHREAD_MUTEX_INITIALIZER;
+struct worker_info {
+  struct job_queue *jq;
+  struct job_queue *dq;
+};
+
+void push_histogram(int *local_histogram, struct job_queue *dq) {
+  int *histogram_copy = malloc(8 * sizeof(int));
+  memcpy(histogram_copy, local_histogram, 8 * sizeof(int));
+  job_queue_push(dq, histogram_copy);
+  // reset local histogram
+  memset(local_histogram, 0, 8 * sizeof(int));
+}
 
 // Each thread will run this function.  The thread argument is a
 // pointer to a worker_info which has a needle and a pointer to a job queue.
 void* worker(void *arg) {
-  struct job_queue *jq = arg;
+  struct worker_info *wi = arg;
+  struct job_queue *jq = wi->jq;
+  struct job_queue *dq = wi->dq;
   char *filename;
   char *buffer = malloc(FILE_BUFFER_SIZE*sizeof(char));
   int pop_result = 0;
-  
-  while(pop_result >= 0) {
+
+  while (pop_result >= 0) {
     int i = 0;
     int local_histogram[8] = { 0 };
     pop_result = job_queue_pop(jq, (void**)&filename);
-    if(pop_result != -1) {
-      // pop successfull we have a file to process
+    // pop successfull
+    if (pop_result != -1) {
       FILE *file = fopen(filename, "r");
-      size_t readBytes = 0;
-      // read file in chunks of FILE_BUFFER_SIZE
+      size_t read_bytes = 0;
       do {
-        readBytes = fread(buffer, sizeof(char), FILE_BUFFER_SIZE, file);
-        // process each byte of chunk
-        for (size_t j = 0; j < readBytes; ++j) {
-          // increment total byte counter
+        read_bytes = fread(buffer,sizeof(char), FILE_BUFFER_SIZE, file);
+        for (size_t j = 0; j < read_bytes; ++j) {
           i++;
           update_histogram(local_histogram, buffer[j]);
-          // only merge and print histogram every 250k bytes
           if ((i % 250000) == 0) {
-            // protect shared resources with mutex
-            pthread_mutex_lock(&lock_histogram);
-            merge_histogram(local_histogram, global_histogram);
-            print_histogram(global_histogram); 
-            pthread_mutex_unlock(&lock_histogram);
+            push_histogram(local_histogram, dq);
           }
         }
-      } 
-      while (readBytes > 0);
+      }
+      while (read_bytes > 0);
+      fclose(file);
+      push_histogram(local_histogram, dq);
+    }
+  }
+  return NULL;
+}
+  
+void* display(void *arg) {
+  struct job_queue *dq = arg;
+  int pop_result = 0;
+  int *local_histogram;
+  int global_histogram[8] = { 0 };
 
-      // write remaining histogram data
-      pthread_mutex_lock(&lock_histogram);
+  while (pop_result >= 0) {
+    pop_result = job_queue_pop(dq, (void**)&local_histogram);
+    if (pop_result != -1) {
       merge_histogram(local_histogram, global_histogram);
       print_histogram(global_histogram); 
-      pthread_mutex_unlock(&lock_histogram);
-
-      fclose(file);
-      free(filename);
+      free(local_histogram);
     }
   }
   return NULL;
@@ -106,12 +119,27 @@ int main(int argc, char * const *argv) {
   struct job_queue jq;
   job_queue_init(&jq, 128);
 
+  // set up job queue for merge and display
+  struct job_queue dq;
+  job_queue_init(&dq, 2048);
+
+  // set up worker info
+  struct worker_info wi;
+  wi.jq = &jq;
+  wi.dq = &dq;
+
   // Start worker threads
   pthread_t *threads = calloc(num_threads, sizeof(pthread_t));
   for (int i = 0; i < num_threads; i++) {
-    if (pthread_create(&threads[i], NULL, &worker, &jq) != 0) {
+    if (pthread_create(&threads[i], NULL, &worker, &wi) != 0) {
       err(1, "pthread_create() failed");
     }
+  }
+
+  // start display thread
+  pthread_t display_thread = 0;
+  if (pthread_create(&display_thread, NULL, &display, &dq) != 0) {
+    err(1, "pthread_create() failed");
   }
 
   // FTS_LOGICAL = follow symbolic links
@@ -146,12 +174,19 @@ int main(int argc, char * const *argv) {
   // cleanup. Destroy the queue and mutex and shutdown worker threads.
   job_queue_destroy(&jq);
   
+
   // Wait for all threads to finish.  This is important, at some may
   // still be working on their job.
   for (int i = 0; i < num_threads; i++) {
     if (pthread_join(threads[i], NULL) != 0) {
       err(1, "pthread_join() failed");
     }
+  }
+  
+  job_queue_destroy(&dq);
+  
+  if (pthread_join(display_thread, NULL) != 0) {
+    err(1, "pthread_join() failed");
   }
  
   move_lines(9);

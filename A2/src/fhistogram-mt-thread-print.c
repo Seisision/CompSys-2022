@@ -19,6 +19,8 @@
 #include <err.h>
 
 #include "histogram.h"
+// file buffer size should be 1 for equivalency with reference solution
+// for equivalency with fast solution use the uncommented value 4096*8
 #define FILE_BUFFER_SIZE 1 //4096*8
 
 struct worker_info {
@@ -57,7 +59,7 @@ void* worker(void *arg) {
         for (size_t j = 0; j < read_bytes; ++j) {
           i++;
           update_histogram(local_histogram, buffer[j]);
-          if ((i % 12500) == 0) {
+          if ((i % 100000) == 0) {
             push_histogram(local_histogram, dq);
           }
         }

@@ -20,6 +20,7 @@
 
 #include "histogram.h"
 
+// you can change file buffer size to 1 for equivalency with reference solution
 #define FILE_BUFFER_SIZE 4096*8
 
 int global_histogram[8] = { 0 };
@@ -49,8 +50,8 @@ void* worker(void *arg) {
           // increment total byte counter
           i++;
           update_histogram(local_histogram, buffer[j]);
-          // only merge and print histogram every 150k bytes
-          if ((i % 256) == 0) {
+          // only merge and print histogram every 100k bytes
+          if ((i % 100000) == 0) {
             // protect shared resources with mutex
             pthread_mutex_lock(&lock_histogram);
             merge_histogram(local_histogram, global_histogram);

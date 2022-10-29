@@ -34,7 +34,7 @@ void* worker(void *arg) {
   struct job_queue *jq = wi->jq;
   char *filename;
   int pop_result = 0;
-  char buffer[65792];
+  char buffer[4096];
   
   while (pop_result >= 0) {
     pop_result = job_queue_pop(jq, (void**)&filename);
@@ -44,7 +44,7 @@ void* worker(void *arg) {
       FILE *file = fopen(filename, "r");
       // read file line for line 
       while (1) {
-        char *line = fgets(buffer, 65792, file);
+        char *line = fgets(buffer, 4096, file);
         // break at file end
         if (line == 0) {
           break;

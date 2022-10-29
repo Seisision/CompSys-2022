@@ -50,7 +50,7 @@ void* worker(void *arg) {
           i++;
           update_histogram(local_histogram, buffer[j]);
           // only merge and print histogram every 150k bytes
-          if ((i % 150000) == 0) {
+          if ((i % 256) == 0) {
             // protect shared resources with mutex
             pthread_mutex_lock(&lock_histogram);
             merge_histogram(local_histogram, global_histogram);

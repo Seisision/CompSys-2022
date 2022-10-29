@@ -20,8 +20,6 @@
 
 #include "histogram.h"
 
-#define FILE_BUFFER_SIZE 4096*8
-
 int global_histogram[8] = { 0 };
 pthread_mutex_t lock_histogram = PTHREAD_MUTEX_INITIALIZER;
 

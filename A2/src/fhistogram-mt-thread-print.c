@@ -19,7 +19,7 @@
 #include <err.h>
 
 #include "histogram.h"
-#define FILE_BUFFER_SIZE 4096*8
+#define FILE_BUFFER_SIZE 1 //4096*8
 
 struct worker_info {
   struct job_queue *jq;
@@ -57,7 +57,7 @@ void* worker(void *arg) {
         for (size_t j = 0; j < read_bytes; ++j) {
           i++;
           update_histogram(local_histogram, buffer[j]);
-          if ((i % 250000) == 0) {
+          if ((i % 12500) == 0) {
             push_histogram(local_histogram, dq);
           }
         }

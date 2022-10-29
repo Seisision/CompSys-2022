@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS=-g -Wall -Wextra -pedantic -std=gnu99 -pthread
-EXAMPLES=fibs fauxgrep fauxgrep-mt fhistogram fhistogram-mt fhistogram-mt-printlock
+EXAMPLES=fibs fauxgrep fauxgrep-mt fhistogram fhistogram-mt fhistogram-mt-thread-print
 
 .PHONY: all test clean ../src.zip
 

@@ -78,8 +78,12 @@ void get_file_sha(const char* sourcefile, hashdata_t hash, int size)
  */
 void get_signature(char* password, char* salt, hashdata_t* hash)
 {
-    // Your code here. This function has been added as a guide, but feel free 
-    // to add more, or work in other parts of the code
+    size_t hash_len = strlen(password) + strlen(salt);
+    char str_to_hash[hash_len];
+
+    memcpy(str_to_hash, password, strlen(password));
+    memcpy(str_to_hash+strlen(password), salt, strlen(salt));
+    get_data_sha(str_to_hash, hash, hash_len, SHA256_HASH_SIZE);
 }
 
 /*
@@ -88,8 +92,15 @@ void get_signature(char* password, char* salt, hashdata_t* hash)
  */
 void register_user(char* username, char* password, char* salt)
 {
-    // Your code here. This function has been added as a guide, but feel free 
-    // to add more, or work in other parts of the code
+    hashdata_t signature;
+    get_signature(password, salt, signature);
+
+    int server = Open_clientfd(SERVER_IP, SERVER_PORT);
+
+    Rio_writen(server, username, strlen(username));
+    Rio_writen(server, signature, SHA256_HASH_SIZE);
+
+    Close(server);
 }
 
 /*

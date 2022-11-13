@@ -95,12 +95,22 @@ void register_user(char* username, char* password, char* salt)
     hashdata_t signature;
     get_signature(password, salt, signature);
 
-    int server = Open_clientfd(SERVER_IP, SERVER_PORT);
+    rio_t rio;
+    int server = Open_clientfd("127.0.0.1", "23457");
+
+    Rio_readinitb(&rio, server);
+
 
     Rio_writen(server, username, strlen(username));
     Rio_writen(server, signature, SHA256_HASH_SIZE);
 
     Close(server);
+}
+
+char* build_message(char* username, char* signature, char* msg, int msg_length)
+{
+  // malloc and build header/message here
+  return 0;
 }
 
 /*

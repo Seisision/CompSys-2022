@@ -86,6 +86,34 @@ void get_signature(char* password, char* salt, hashdata_t* hash)
     get_data_sha(str_to_hash, hash, hash_len, SHA256_HASH_SIZE);
 }
 
+char* build_message(char* username, char* signature, char* msg, unsigned int msg_length)
+{
+    char* msg_data = malloc(52+msg_length);
+    memcpy(msg_data, username, strlen(username));
+
+    int u_size = strlen(username);
+    int s_size = 32;
+
+    // pad header size
+    for (int i = u_size; i < 16; ++i) {
+        msg_data[i] = 0;
+    }
+
+    memcpy(msg_data+16, signature, s_size);
+
+    void* msg_length_p = &msg_length;
+    memcpy(msg_data+48,msg_length_p+3,1);
+    memcpy(msg_data+49,msg_length_p+2,1);
+    memcpy(msg_data+50,msg_length_p+1,1);
+    memcpy(msg_data+51,msg_length_p,1);
+
+    if (msg_length > 0) {
+        memcpy(msg_data+52, msg, msg_length);
+    }
+
+    return msg_data;
+}
+
 /*
  * Register a new user with a server by sending the username and signature to 
  * the server
@@ -100,17 +128,11 @@ void register_user(char* username, char* password, char* salt)
 
     Rio_readinitb(&rio, server);
 
+    char* data = build_message(username, signature, 0, 0);
 
-    Rio_writen(server, username, strlen(username));
-    Rio_writen(server, signature, SHA256_HASH_SIZE);
+    Rio_writen(server, data, 52);
 
     Close(server);
-}
-
-char* build_message(char* username, char* signature, char* msg, int msg_length)
-{
-  // malloc and build header/message here
-  return 0;
 }
 
 /*

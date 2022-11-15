@@ -21,6 +21,53 @@ char my_port[PORT_LEN];
 
 int c;
 
+struct response {
+    unsigned int data_length;
+    unsigned int status_code;
+    unsigned int block_number;
+    unsigned int block_count;
+    char* block_hash;
+    char* total_hash;
+    char* message_body;
+};
+
+unsigned int bytes_to_int(char* bytes) {
+    unsigned int n = 0;
+
+    n = (unsigned int)bytes[3];
+    n = n | (((unsigned int)bytes[2]) << 8);
+    n = n | (((unsigned int)bytes[1]) << 16);
+    n = n | (((unsigned int)bytes[0]) << 24);
+
+    return n;
+}
+
+void response_init(struct response *p, char *byte_reponse) {
+    p->block_hash = malloc(32);
+    p->total_hash = malloc(32);
+
+    p->data_length = bytes_to_int(byte_reponse);
+    p->status_code = bytes_to_int(byte_reponse+4);
+    p->block_number = bytes_to_int(byte_reponse+8);
+    p->block_count = bytes_to_int(byte_reponse+12);
+
+    memcpy(p->block_hash, byte_reponse+16, 32);
+    memcpy(p->total_hash, byte_reponse+48, 32);
+
+    if (p->data_length >= 0) {
+        p->message_body = malloc(p->data_length);
+        memcpy(p->message_body,byte_reponse+80, p->data_length);
+    } else {
+      p->message_body = NULL;
+    }
+}
+
+void cleanup_response(struct response *p) {
+  free(p->block_hash);
+  free(p->total_hash);
+  free(p->message_body);
+}
+
 /*
  * Gets a sha256 hash of specified data, sourcedata. The hash itself is
  * placed into the given variable 'hash'. Any size can be created, but a
@@ -95,7 +142,7 @@ char* build_message(char* username, char* signature, char* msg, unsigned int msg
     int s_size = 32;
 
     // pad header size
-    for (int i = u_size; i < 16; ++i) {
+    for (int i = u_size; i < 16; i++) {
         msg_data[i] = 0;
     }
 
@@ -126,11 +173,19 @@ void register_user(char* username, char* password, char* salt)
     rio_t rio;
     int server = Open_clientfd("127.0.0.1", "23457");
 
+    char* data = build_message(username, signature, 0, 0);
+    Rio_writen(server, data, 52);
     Rio_readinitb(&rio, server);
 
-    char* data = build_message(username, signature, 0, 0);
+    char buffer[MAXLINE];
+    struct response r;
+    Rio_readlineb(&rio, buffer, MAXLINE);
 
-    Rio_writen(server, data, 52);
+    response_init(&r, buffer);
+    printf("status response: %d\n", r.status_code);
+    printf("feedback: %s\n", r.message_body);
+
+    cleanup_response(&r);
 
     Close(server);
 }

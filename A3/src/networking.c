@@ -20,6 +20,10 @@ char server_port[PORT_LEN];
 char my_ip[IP_LEN];
 char my_port[PORT_LEN];
 
+const size_t SERVER_HEADER_FIELD_OFFSET = 4;
+const size_t CLIENT_HEADER_OFFSET = 52;
+const size_t USERNAME_HEADER_OFFSET = 16;
+
 int c;
 
 struct response {
@@ -32,45 +36,44 @@ struct response {
     char* message_body;
 };
 
+// convert byte order (switch endianness)
+// as this operation is symmetrical this method can be used for both
+// host to network and network to host.
 unsigned int bytes_to_int(char* bytes) {
     return htonl(*((unsigned int*)bytes));
 }
 
+// initialize a response.
 void response_init(struct response *p, char *byte_reponse) {
-    p->block_hash = malloc(32);
-    p->total_hash = malloc(32);
+    p->block_hash = malloc(SHA256_HASH_SIZE);
+    p->total_hash = malloc(SHA256_HASH_SIZE);
 
     p->data_length = bytes_to_int(byte_reponse);
-    p->status_code = bytes_to_int(byte_reponse+4);
-    p->block_number = bytes_to_int(byte_reponse+8);
-    p->block_count = bytes_to_int(byte_reponse+12);
+    size_t offset = SERVER_HEADER_FIELD_OFFSET;
 
-    memcpy(p->block_hash, byte_reponse+16, 32);
-    memcpy(p->total_hash, byte_reponse+48, 32);
+    p->status_code = bytes_to_int(byte_reponse+offset);
+    offset += SERVER_HEADER_FIELD_OFFSET;
 
+    p->block_number = bytes_to_int(byte_reponse+offset);
+    offset += SERVER_HEADER_FIELD_OFFSET;
+
+    p->block_count = bytes_to_int(byte_reponse+offset);
+    offset += SERVER_HEADER_FIELD_OFFSET;
+
+    memcpy(p->block_hash, byte_reponse+offset, SHA256_HASH_SIZE);
+    offset += SHA256_HASH_SIZE;
+
+    memcpy(p->total_hash, byte_reponse+offset, SHA256_HASH_SIZE);
+
+    // only allocate space for message body if response data is present
     if (p->data_length >= 0) {
         p->message_body = malloc(p->data_length);
-        memcpy(p->message_body,byte_reponse+80, p->data_length);
     } else {
       p->message_body = NULL;
     }
 }
 
-void response_init_h(struct response *p, char *byte_reponse) {
-    p->block_hash = malloc(32);
-    p->total_hash = malloc(32);
-
-    p->data_length = bytes_to_int(byte_reponse);
-    p->status_code = bytes_to_int(byte_reponse+4);
-    p->block_number = bytes_to_int(byte_reponse+8);
-    p->block_count = bytes_to_int(byte_reponse+12);
-
-    memcpy(p->block_hash, byte_reponse+16, 32);
-    memcpy(p->total_hash, byte_reponse+48, 32);
-
-    p->message_body = NULL;
-}
-
+// free memory allocated in response
 void cleanup_response(struct response *p) {
   free(p->block_hash);
   free(p->total_hash);
@@ -96,6 +99,21 @@ void get_data_sha(const char* sourcedata, hashdata_t hash, uint32_t data_size,
   {
     hash[i] = shabuffer[i];
   }
+}
+
+// takes a hash and data to hash. Returns 0 if the hash of the data does not match the
+// passed hash and returns 1 if it does match.
+int verify_block_checksum(char* block_hash, char* data, uint32_t data_size) {
+    hashdata_t data_hash;
+
+    get_data_sha(data, data_hash, data_size, SHA256_HASH_SIZE);
+
+    for (int i = 0; i < SHA256_HASH_SIZE; ++i) {
+        if (data_hash[i] != (uint8_t)block_hash[i]) {
+          return 0;
+        }
+    }
+    return 1;
 }
 
 /*
@@ -144,31 +162,33 @@ void get_signature(char* password, char* salt, hashdata_t* hash)
 
 char* build_message(char* username, char* signature, char* msg, unsigned int msg_length)
 {
-    char* msg_data = malloc(52+msg_length);
+    int u_size = strlen(username);
+
+    // message to be sent to the server
+    char* msg_data = malloc(CLIENT_HEADER_OFFSET+msg_length);
+
+    // copy username to the header
     memcpy(msg_data, username, strlen(username));
 
-    int u_size = strlen(username);
-    int s_size = 32;
-
-    // pad header size
-    for (int i = u_size; i < 16; i++) {
+    // pad username part of header if size too small 
+    for (int i = u_size; i < USERNAME_HEADER_OFFSET; i++) {
         msg_data[i] = 0;
     }
 
-    memcpy(msg_data+16, signature, s_size);
+    size_t offset = USERNAME_HEADER_OFFSET; 
+
+    // copy signature to the header (after the username)
+    memcpy(msg_data+offset, signature, SHA256_HASH_SIZE);
 
     void* msg_length_p = &msg_length;
     memcpy(msg_data+48,msg_length_p+3,1);
     memcpy(msg_data+49,msg_length_p+2,1);
     memcpy(msg_data+50,msg_length_p+1,1);
     memcpy(msg_data+51,msg_length_p,1);
-    printf("length in byte array: %d%d%d%d\n", msg_data[48], msg_data[49], msg_data[50], msg_data[51]);
 
+    // if any request data exists it is added to the message (after the header)
     if (msg_length > 0) {
-        memcpy(msg_data+52, msg, msg_length);
-        printf("passed message length: %d\n", msg_length);
-        printf("message: %s\n", msg);
-        printf("actual message length: %d\n", strlen(msg));
+        memcpy(msg_data+CLIENT_HEADER_OFFSET, msg, msg_length);
     }
     return msg_data;
 }
@@ -182,19 +202,21 @@ void register_user(char* username, char* password, char* salt)
     hashdata_t signature;
     get_signature(password, salt, signature);
 
-    rio_t rio;
     int server = Open_clientfd("127.0.0.1", "23457");
 
     char* data = build_message(username, signature, 0, 0);
     Rio_writen(server, data, 52);
-    Rio_readinitb(&rio, server);
 
-    char buffer[MAX_MSG_LEN];
+    char buffer[80];
     struct response r;
-    Rio_readn(server, buffer, MAX_MSG_LEN);
+    Rio_readn(server, buffer, 80);
 
     response_init(&r, buffer);
-    printf("feedback: %s\n", r.message_body);
+
+    if (r.data_length > 0) {
+          Rio_readn(server, r.message_body, r.data_length);
+          printf("%s\n", r.message_body);
+    }
 
     cleanup_response(&r);
 
@@ -208,17 +230,14 @@ void register_user(char* username, char* password, char* salt)
  */
 void get_file(char* username, char* password, char* salt, char* to_get)
 {
-    // Your code here. This function has been added as a guide, but feel free 
-    // to add more, or work in other parts of the code
+    int success = 1;
     hashdata_t signature;
     get_signature(password, salt, signature);
 
-    rio_t rio;
     int server = Open_clientfd("127.0.0.1", "23457");
 
     char* data = build_message(username, signature, to_get, strlen(to_get));
     Rio_writen(server, data, 52+strlen(to_get));
-    Rio_readinitb(&rio, server);
 
     char buffer[80+MAX_MSG_LEN];
     struct response* pr;
@@ -227,44 +246,113 @@ void get_file(char* username, char* password, char* salt, char* to_get)
     int counter = 0;
 
     size_t total_message_length = 0;
+    char total_hash[SHA256_HASH_SIZE];
 
     struct response** response_buffer;
     while (1)
     {
-      if (Rio_readn(server, buffer, 80) != 80) break;
-      pr = malloc(sizeof(struct response));
-      response_init_h(pr, buffer);
-      if (pr->data_length > 0) {
-          pr->message_body = malloc(pr->data_length);
-          Rio_readn(server, pr->message_body, pr->data_length);
+      // read headers in blocks of 80 bytes
+      size_t net_bytes_read = Rio_readn(server, buffer, 80);
+      if (net_bytes_read != 80) {
+          if (net_bytes_read > 0) {
+            success = 0;
+            printf("unexpected msg size: %d\n", net_bytes_read);
+          }
+          break; 
       }
+      // allocate and initialize response based on the read header
+      pr = malloc(sizeof(struct response));
+      response_init(pr, buffer);
+
+      // keep block number of current response and expected total count of blocks
       unsigned int block_number = pr->block_number;
       unsigned int block_count = pr->block_count;
 
+      // allocate buffer space for the total number of blocks expected to be sent
       if (counter == 0) {
         response_buffer = malloc(block_count*sizeof(struct response*));
+        // hash of total data sent across all blocks
+        memcpy(total_hash, pr->total_hash, SHA256_HASH_SIZE);
       }
+
+      // check if header has response data (payload) 
+      // if it does allocate and read the message/payload
+      if (pr->data_length > 0) {
+          //pr->message_body = malloc(pr->data_length);
+          Rio_readn(server, pr->message_body, pr->data_length);
+          //verify the block hash of the response data in this message
+          // also verify that the total hash (total hash should be consistent across all blocks)
+          if (verify_block_checksum(pr->block_hash, pr->message_body, pr->data_length) == 0 &&
+              pr->total_hash == total_hash) { 
+              success = 0;
+              // +1 as blocks are 0 indexed
+              printf("block count %u/%u\n", block_number+1, block_count);
+              printf("Block hash does not match\n");
+          }
+      }
+
+      if (pr->status_code != 1) {
+          success = 0;
+          printf("Error: %s\n", pr->message_body);
+      }
+
+      // add the read response to be buffer array at its correct index in the series
       response_buffer[block_number] = pr;
-      printf("buffer respponse %u\n", response_buffer[counter]->block_number);
+
+      // increment counter and total_message_length
       counter++;
       total_message_length += pr->data_length;
-      if(counter > block_count) break;
+
+      // if we have read more than the total number of blocks to be sent break
+      if(counter > block_count) {
+          break; 
+      }
     }
 
-    char* combined_message = malloc(total_message_length+1);
+    // if we failed while trying to get the file, then clean up and return
+    if (success == 0) {
+        printf("failed to fetch file\n");
+        if (response_buffer != NULL) {
+            for (int i = 0; i < counter; ++i) {
+                cleanup_response(response_buffer[i]);
+                free(response_buffer[i]);
+            }
+            free(response_buffer);
+        }
+        Close(server);
+        return;
+    }
+
+    // allocate space for the full message 
+    char* combined_message = malloc(total_message_length);
     size_t progress = 0;
 
+    // iterate through response buffer and construct the combined_message
     for (int i = 0; i < counter; ++i) {
+      // copy the read message to the combined_message
       memcpy(combined_message+progress,response_buffer[i]->message_body, response_buffer[i]->data_length);
+      // increment progress by length of newly copied data
       progress += response_buffer[i]->data_length;
+      // free any memory relevant to the newly copied response as it is no longer needed
       cleanup_response(response_buffer[i]);
       free(response_buffer[i]);
     }
     free(response_buffer);
 
-    combined_message[total_message_length] = 0;
-    printf("%s", combined_message);
+    // verify total hash
+    if (verify_block_checksum(total_hash, combined_message, total_message_length) == 0) { 
+        printf("Total hash does not match\n");
+        free(combined_message);
+        Close(server);
+        return;
+    }
 
+    FILE *file;
+    file = fopen (to_get,"w");
+    fputs(combined_message, file);
+    fclose(file);
+    printf("file: %s fetched and copied to /src/\n", to_get);
+    free(combined_message);
     Close(server);
 }
 
@@ -362,16 +450,8 @@ int main(int argc, char **argv)
     // Register the given user
     register_user(username, password, user_salt);
 
-    printf("\n");
-    printf("------------------------NEW CALL get file tiny-------------------");
-    printf("\n");
-
     // Retrieve the smaller file, that doesn't not require support for blocks
     get_file(username, password, user_salt, "tiny.txt");
-
-    printf("\n");
-    printf("------------------------NEW CALL get file big-------------------");
-    printf("\n");
 
     // Retrieve the larger file, that requires support for blocked messages
     get_file(username, password, user_salt, "hamlet.txt");

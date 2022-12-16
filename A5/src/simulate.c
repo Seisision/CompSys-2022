@@ -14,7 +14,9 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
     {
         case 0b0000011:
         {
-          // load
+          // load instructions: LB, LH, LW, LBU, LHU
+          int funct3 = (instruction >> 12) & 0x3f;
+
         }
         break;
 
@@ -23,12 +25,35 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
           // immediate
           // addi
         }
+        break;
 
         case 0b0110011:
         {
           // non immediate
           // add
+          int funct3 = (instruction >> 12) & 0x3f;
         }
+        break;
+
+        case 0b1101111:
+        {
+          // JAL
+        }
+        break;
+
+        case 0b1100111:
+        {
+          // JALR
+        }
+        break;
+
+        case 0b1100011:
+        {
+          // branch instructions: BEQ, BNE, BLT, BGE, BLTU, BGEU
+          // funct3 is 12-14
+          int funct3 = (instruction >> 12) & 0x3f;
+        }
+        break;
     }
 
 }

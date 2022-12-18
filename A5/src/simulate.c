@@ -2,7 +2,8 @@
 
 #define uint unsigned int
 
-#define debugmode 1
+#define debugmode 0
+#define maxcnt 1000
 
 long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE *log_file) 
 {
@@ -20,18 +21,18 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
 
     while(continue_flag)
     {
-      if(counter > 100000) 
+      /*if(counter > 100000) 
       {
         printf("failed");
         continue_flag = 0;
-      }
+      }*/
 
       int inst = memory_rd_w(mem, pc);
       int opcode = inst & 0x7f;    
 
       int rd = (inst >> 7) & 0x1f;
             
-      if (debugmode && counter < 100)
+      if (debugmode && counter < maxcnt)
       {
         printf("opcode: %x, rd: %d\n", opcode, rd);
       }
@@ -44,23 +45,23 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
             int rs1 = (inst & 0x000f8000) >> 15;
           
             // load insts: lb, lh, lw, lbu, lhu
-            int funct3 = (inst >> 12) & 0x7;
+            int funct3 = ((uint)inst >> 12) & 0x7;
 
             // upper 12 bits to lower 12 bits
-            int imm = inst >> 20;
+            int imm = ((uint)inst >> 20);
 
             // sign bit is at (12)
-            // check and mask/extend upper 19 bits if set
-            if (imm & 0x00001000) 
+            // check and mask/extend upper 20 bits if set
+            if (imm & 0x00000800) 
             {
-              imm = imm | 0xffffe000;
+              imm = imm | 0xfffff000;
             }
             int addr = regs[rs1] + imm;
 
             switch(funct3) 
             {
                 case 0b000:
-                {
+                {  
                   // lb
                   int data = memory_rd_b(mem, addr);
                   // sign extend
@@ -68,7 +69,14 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                   {
                     data = data | 0xffffff00;
                   }
-                  regs[rd] = data;
+                                                    
+                  if (debugmode && counter < maxcnt)
+                  {
+                    printf("lb rs1 %d imm %x\n", rs1, imm);
+                    printf("rs1 %d memread %d\n", regs[rs1], data);
+                  }
+
+                  if (rd) regs[rd] = data;
                 }
                 break;
 
@@ -81,14 +89,28 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                   {
                     data = data | 0xffff0000;
                   }
-                  regs[rd] = data;
+
+                  if (debugmode && counter < maxcnt)
+                  {
+                    printf("lh rs1 %d imm %x\n", rs1, imm);
+                    printf("rs1 %d memread %d\n", regs[rs1], data);
+                  }
+
+                  if (rd) regs[rd] = data;
                 }
                 break;
                 case 0b010:
                 {
                   // lw
                   int data = memory_rd_w(mem, addr);
-                  regs[rd] = data;
+
+                  if (debugmode && counter < maxcnt)
+                  {
+                    printf("lw rs1 %d imm %x\n", rs1, imm);
+                    printf("rs1 %d memread %d\n", regs[rs1], data);
+                  }
+
+                  if (rd) regs[rd] = data;
                 }
                 break;
 
@@ -96,7 +118,16 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                 {
                   // lbu
                   int data = memory_rd_b(mem, addr);
-                  regs[rd] = data;
+                  // zero extend
+                  //data = data | 0x000000ff;
+
+                  if (debugmode && counter < maxcnt)
+                  {
+                    printf("lbu rs1 %d imm %x\n", rs1, imm);
+                    printf("rs1 %d memread %d\n", regs[rs1], data);
+                  }
+
+                  if (rd) regs[rd] = data;
                 }
                 break;
 
@@ -104,7 +135,16 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                 {
                   // lhu
                   int data = memory_rd_h(mem, addr);
-                  regs[rd] = data;
+                  // zero extend
+                  //data = data | 0x0000ffff;
+
+                  if (debugmode && counter < maxcnt)
+                  {
+                    printf("lhu rs1 %d imm %x\n", rs1, imm);
+                    printf("rs1 %d memread %d\n", regs[rs1], data);
+                  }
+
+                  if (rd) regs[rd] = data;
                 }
                 break;
             }
@@ -116,18 +156,18 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
             // immediate
             // addi, slli, slti, sitiu, xori, srli, srai, ori, andi
             int funct3 = (inst & 0x00007000) >> 12;
-            int funct7 = (inst >> 25); // left most bits no need to mask
+            int funct7 = ((uint)inst >> 25); // left most bits no need to mask
             int rs1 = (inst & 0x000f8000) >> 15;
             int shamt = (inst & 0x01f00000) >> 20;
             int rs2 = shamt;
-            int imm = inst >> 20; // left most bits no need to mask
+            int imm = (uint)inst >> 20; // left most bits no need to mask
 
             int imm_ex = imm;
             // sign bit is at (11)
             // check and mask/extend upper 20 bits if set
             if (imm_ex  & 0x00000800) 
             {
-              imm_ex = imm_ex  | 0xffff0000;
+              imm_ex = imm_ex  | 0xfffff000;
             }
           
             // use pointers to get exact bits
@@ -140,9 +180,16 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
             {
               case 0b000: // addi
               {
-                uint res = *((uint*)(&(regs[rs1])));
+                uint res = rs1u;
                 res += *((uint*)(&imm_ex));
-                regs[rd] = *((int*)(&res));
+
+                if (debugmode && counter < maxcnt)
+                {
+                  printf("addi rs1 %d imm %x\n", rs1, imm_ex);
+                  printf("rs1 %d\n", regs[rs1]);
+                }
+
+                if (rd) regs[rd] = *((int*)(&res));
               } 
               break;
 
@@ -150,11 +197,11 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
               {
                 if(regs[rs1] < imm_ex)
                 {
-                  regs[rd] = 1;
+                  if (rd) regs[rd] = 1;
                 } 
                 else 
                 {
-                  regs[rd] = 0;
+                  if (rd) regs[rd] = 0;
                 }
               } 
               break;
@@ -162,32 +209,36 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
               case 0b011: // sltiu
               {
 
-                if(rs1u < rs2u)
+                if(rs1u < *((uint*)(&imm_ex)))
                 {
-                  regs[rd] = 1;
+                  if (rd) regs[rd] = 1;
                 } 
                 else 
                 {
-                  regs[rd] = 0;
+                  if (rd) regs[rd] = 0;
                 }
               } 
               break;
 
               case 0b100: // xori
               {
-                regs[rd] = regs[rs1] ^ imm_ex;
+                if (rd) regs[rd] = regs[rs1] ^ imm_ex;
               } 
               break;
 
               case 0b110: // ori
               {
-                regs[rd] = regs[rs1] | imm_ex;
+                if (rd) regs[rd] = regs[rs1] | imm_ex;
               } 
               break;
 
               case 0b111: // andi
               {
-                regs[rd] = regs[rs1] & imm_ex;
+                if (debugmode && counter < maxcnt)
+                {
+                  printf("andi (%x & imm %x)\n", regs[rs1], imm_ex);
+                }
+                if (rd) regs[rd] = regs[rs1] & imm_ex;
               } 
               break;
 
@@ -196,7 +247,7 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                 // cast to uint for logical shift
                 uint res = rs1u;
                 res = res << shamt;
-                   regs[rd] = *((int*)(&res));
+                if (rd) regs[rd] = *((int*)(&res));
               } 
               break;
 
@@ -206,7 +257,7 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                  {
                    // srai
                    // integer shift is arithmetic by default
-                   regs[rd] = regs[rs1] >> shamt;
+                   if (rd) regs[rd] = regs[rs1] >> shamt;
                  }
                  else
                  {
@@ -214,7 +265,7 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                    // cast to uint for logical shift
                    uint res = rs1u;
                    res = res >> shamt;
-                   regs[rd] = *((int*)(&res));
+                   if (rd) regs[rd] = *((int*)(&res));
                  }
               } 
               break;
@@ -226,7 +277,7 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
           {
             // auipc
             int imm = inst & 0xfffff000;
-            regs[rd] = imm + pc;
+            if (rd) regs[rd] = imm + pc;
           }
           break;
 
@@ -237,14 +288,14 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
             int rs1 = (inst & 0x000f8000) >> 15;
             int rs2 = (inst & 0x01f00000) >> 20;
 
-            int imm = ((inst & 0xfe000000) >> 20) | // bit 31.25 to 11.5
+            int imm = ((uint)(inst & 0xfe000000) >> 20) | // bit 31.25 to 11.5
                       ((inst & 0x00000f80) >> 7);    // bit 11.7 to 4.0
 
             // sign bit is at (11)
             // check and mask/extend upper 20 bits if set
             if (imm & 0x00000800) 
             {
-              imm = imm | 0xffff0000;
+              imm = imm | 0xfffff000;
             }
 
             int addr = regs[rs1] + imm;
@@ -255,6 +306,12 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
               // sb
               case 0b000:
               {
+                if (debugmode && counter < maxcnt)
+                {
+                  printf("sb rs1 %d rs2 %d imm %x\n", rs1, rs2, imm);
+                  printf("rs1 %d rs2 %d writemem %d addr %x\n", regs[rs1], regs[rs1], data, addr);
+                }
+
                 memory_wr_b(mem, addr, data);
               }
               break;
@@ -262,6 +319,12 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
               // sh
               case 0b001:
               {
+                if (debugmode && counter < maxcnt)
+                {
+                  printf("sh rs1 %d rs2 %d imm %x\n", rs1, rs2, imm);
+                  printf("rs1 %d rs2 %d writemem %d addr %x\n", regs[rs1], regs[rs1], data, addr);
+                }
+
                 memory_wr_h(mem, addr, data);
               }
               break;
@@ -269,6 +332,12 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
               // sw
               case 0b010:
               {
+                if (debugmode && counter < maxcnt)
+                {
+                  printf("sw rs1 %d rs2 %d imm %x\n", rs1, rs2, imm);
+                  printf("rs1 %d rs2 %d writemem %d addr %x\n", regs[rs1], regs[rs1], data, addr);
+                }
+
                 memory_wr_w(mem, addr, data);
               }
               break;
@@ -282,8 +351,8 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                         
             // add, sub, sil, sit, sltu, xor, srl, ara, or, and
             // mul, mulh, mulhau, mulhu, div, divu, rem, remu
-            int funct3 = (inst >> 12) & 0x7;
-            int funct7 = (inst >> 25); // left most bits no need to mask
+            int funct3 = ((uint)inst >> 12) & 0x7;
+            int funct7 = ((uint)inst >> 25); // left most bits no need to mask
             int rs1 = (inst & 0x000f8000) >> 15;
             int rs2 = (inst & 0x01f00000) >> 20;
           
@@ -302,8 +371,12 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                 case 0b000:
                 {
                   // mul
+                  if (debugmode && counter < maxcnt)
+                  {
+                    printf("mul (%d * %d)\n", rs1u, rs2u);
+                  }
                   uint res = rs1u * rs2u;
-                  regs[rd] = *((int*)(&res));
+                  if (rd) regs[rd] = *((int*)(&res));
                 }
                 break;
 
@@ -314,7 +387,7 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                   long rs2l = rs2;
 
                   long resl = rs1l * rs2l;
-                  regs[rd] = (resl >> 32);
+                  if (rd) regs[rd] = (resl >> 32);
                 }
                 break;
 
@@ -325,7 +398,7 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                   unsigned long rs2l = rs2;
 
                   long resl = rs1l * rs2l;
-                  regs[rd] = (resl >> 32);
+                  if (rd) regs[rd] = (resl >> 32);
 
                 }
                 break;
@@ -337,7 +410,7 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                   unsigned long rs2l = rs2;
 
                   long resl = rs1l * rs2l;
-                  regs[rd] = (resl >> 32);
+                  if (rd) regs[rd] = (resl >> 32);
                 }
                 break;
 
@@ -346,12 +419,12 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                   // div
                   if (rs2int)
                   {
-                    regs[rd] = rs1int/rs2int;
+                    if (rd) regs[rd] = rs1int/rs2int;
                   }
                   else
                   {
                     // divide by 0
-                    regs[rd] = -1;
+                    if (rd) regs[rd] = -1;
                   }
                 }
                 break;
@@ -362,12 +435,12 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                   if (rs2u)
                   {
                     uint res = rs1u/rs2u;
-                    regs[rd] = *((int*)(&res));
+                    if (rd) regs[rd] = *((int*)(&res));
                   }
                   else
                   {
                     // divide by 0
-                    regs[rd] = 0xffffffff;
+                    if (rd) regs[rd] = 0xffffffff;
                   }
 
                 }
@@ -378,12 +451,12 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                   // rem
                   if (rs2int)
                   {
-                    regs[rd] = rs1int%rs2int;
+                    if (rd) regs[rd] = rs1int%rs2int;
                   }
                   else
                   {
                     // divide by 0
-                    regs[rd] = rs1int;
+                    if (rd) regs[rd] = rs1int;
                   }
                 }
                 break;
@@ -394,12 +467,12 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                   if (rs2u)
                   {
                     uint res = rs1u%rs2u;
-                    regs[rd] = *((int*)(&res));
+                    if (rd) regs[rd] = *((int*)(&res));
                   }
                   else
                   {
                     // divide by 0
-                    regs[rd] = rs1int;
+                    if (rd) regs[rd] = rs1int;
                   }
                 }
                 break;
@@ -417,13 +490,17 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                   {
                     // sub
                     uint res = rs1u - rs2u; 
-                    regs[rd] = *((int*)(&res));
+                    if (rd) regs[rd] = *((int*)(&res));
                   }
                   else
                   {
                     // add
+                    if (debugmode && counter < maxcnt)
+                    {
+                      printf("add (%d + %d)\n", rs1u, rs2u);
+                    }
                     uint res = rs1u + rs2u; 
-                    regs[rd] = *((int*)(&res));
+                    if (rd) regs[rd] = *((int*)(&res));
                   }
                 }
                 break;
@@ -436,7 +513,7 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                   // extract lower bits of rs2 value
                   uint shamt = rs2u & 0x1f;
                   res = res << shamt;
-                     regs[rd] = *((int*)(&res));
+                  if (rd) regs[rd] = *((int*)(&res));
                 }
                 break;
 
@@ -445,11 +522,11 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                   // slt
                   if(rs1int < rs2int)
                   {
-                    regs[rd] = 1;
+                    if (rd) regs[rd] = 1;
                   }
                   else
                   {
-                    regs[rd] = 0;
+                    if (rd) regs[rd] = 0;
                   }
                 }
                 break;
@@ -459,11 +536,11 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                   // sltu
                   if(rs1u < rs2u)
                   {
-                    regs[rd] = 1;
+                    if (rd) regs[rd] = 1;
                   }
                   else
                   {
-                    regs[rd] = 0;
+                    if (rd) regs[rd] = 0;
                   }
                 }
                 break;
@@ -471,7 +548,7 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                 case 0b100:
                 {
                   // xor
-                  regs[rd] = rs1int ^ rs2int;
+                  if (rd) regs[rd] = rs1int ^ rs2int;
                 }
                 break;
 
@@ -482,7 +559,7 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                     // sra
                     // extract lower bits of rs2 value
                     int shamt = rs2int & 0x1f;
-                    regs[rd] = rs1int >> shamt;
+                    if (rd) regs[rd] = rs1int >> shamt;
                   }
                   else
                   {
@@ -492,7 +569,7 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                     // extract lower bits of rs2 value
                     uint shamt = rs2u & 0x1f;
                     res = res >> shamt;
-                    regs[rd] = *((int*)(&res));
+                    if (rd) regs[rd] = *((int*)(&res));
                   }
                 }
                 break;
@@ -500,7 +577,7 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                 case 0b110:
                 {
                   // or
-                  regs[rd] = rs1int | rs2int;
+                  if (rd) regs[rd] = rs1int | rs2int;
 
                 }
                 break;
@@ -508,7 +585,7 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                 case 0b111:
                 {
                   // and
-                  regs[rd] = rs1int & rs2int;
+                  if (rd) regs[rd] = rs1int & rs2int;
                 }
                 break;
               }
@@ -520,7 +597,13 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
           {
             // lui (load upper immediate 20 upper bits)
             int imm = inst & 0xfffff000;
-            regs[rd] = imm;
+
+            if (debugmode && counter < maxcnt)
+            {
+              printf("lui imm %x\n", imm);
+            }
+
+            if (rd) regs[rd] = imm;
 
           }
           break;
@@ -534,10 +617,19 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
             int rs1 = (inst & 0x000f8000) >> 15;
             int rs2 = (inst & 0x01f00000) >> 20;
           
-            int imm = ((inst & 0x80000000) >> 19) | // bit 31 to 12
-                      ((inst & 0x7e00000) >> 20)  | // bit 30.25 to 10.5
-                      ((inst & 0x0000f00) >> 7)   | // bit 11.8 to 4.1
-                      ((inst & 0x0000080) << 4);    // bit 7 to 11
+            /*int imm = (((uint)inst & 0x80000000) >> 19) | // bit 31 to 12
+                      ((inst & 0x7e000000) >> 20)  | // bit 30.25 to 10.5
+                      ((inst & 0x00000f00) >> 7)   | // bit 11.8 to 4.1
+                      ((inst & 0x00000080) << 4);    // bit 7 to 11 */
+
+            int imm = (((uint)inst >> 31) << 12) | // bit 31 to 12
+                      ((inst & 0x7e000000) >> 20)  | // bit 30.25 to 10.5
+                      ((inst & 0x00000f00) >> 7)   | // bit 11.8 to 4.1
+                      ((inst & 0x00000080) << 4);    // bit 7 to 11
+
+            
+            //uint uinst = *((uint*)(&inst));
+            //uint uimm = ((uinst & 0xf00) >> 0x7)  | ((uinst & 0x7e000000)
 
             // sign bit is at (12)
             // check and mask/extend upper 19 bits if set
@@ -546,15 +638,20 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
               imm = imm | 0xffffe000;
             }
             
+            if (!imm)
+            {
+              //continue_flag = 0;
+            }
+
             switch(funct3 & 0x7)
             {
               case 0b000:
               {
                 // beq
-                if (debugmode)
+                if (debugmode && counter < maxcnt)
                 {
                   printf("beq %d %d %x\n", rs1, rs2, imm);
-                  printf("%x\n");
+                  printf("rs1 %d rs2 %d\n", regs[rs1], regs[rs2]);
                 }
 
                 if(regs[rs1] == regs[rs2])
@@ -567,9 +664,10 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
               case 0b001:
               {
                 // bne
-                if (debugmode)
+                if (debugmode && counter < maxcnt)
                 {
                   printf("bne %d %d %x\n", rs1, rs2, imm);
+                  printf("rs1 %d rs2 %d\n", regs[rs1], regs[rs2]);
                 }
 
                 if(regs[rs1] != regs[rs2])
@@ -582,9 +680,10 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
               case 0b100:
               {
                 // blt
-                if (debugmode)
+                if (debugmode && counter < maxcnt)
                 {
                   printf("blt %d %d %x\n", rs1, rs2, imm);
+                  printf("rs1 %d rs2 %d\n", regs[rs1], regs[rs2]);
                 }
 
                 if(regs[rs1] < regs[rs2])
@@ -597,9 +696,10 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
               case 0b101:
               {
                 // bge
-                if (debugmode)
+                if (debugmode && counter < maxcnt)
                 {
-                  printf("bge %d %d %x\n", rs1, rs2, imm);
+                  printf("bge %d %d %x\n", rs1, rs2, imm);                  
+                  printf("rs1 %d rs2 %d\n", regs[rs1], regs[rs2]);
                 }
 
                 if(regs[rs1] >= regs[rs2])
@@ -612,9 +712,10 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
               case 0b110:
               {
                 // bltu
-                if (debugmode)
+                if (debugmode && counter < maxcnt)
                 {
                   printf("bltu %d %d %x\n", rs1, rs2, imm);
+                  printf("rs1 %d rs2 %d\n", regs[rs1], regs[rs2]);
                 }
 
                 if((uint)regs[rs1] < (uint)regs[rs2])
@@ -627,9 +728,10 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
               case 0b111:
               {
                 // bgeu
-                if (debugmode)
+                if (debugmode && counter < maxcnt)
                 {
                   printf("bgeu %d %d %x\n", rs1, rs2, imm);
+                  printf("rs1 %d rs2 %d\n", regs[rs1], regs[rs2]);
                 }
 
                 if((uint)regs[rs1] >= (uint)regs[rs2])
@@ -641,6 +743,10 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
 
               default: 
               // something bad happend
+              if (debugmode)
+                {
+                  printf("error unknown branch\n");
+                }
               continue_flag = 0;
               break;
             }
@@ -654,12 +760,17 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
                       ((inst & 0x7fe00000) >> 20) | // bit 30.21 to 10.1
                       ((inst & 0x00100000) >> 9)  | // bit 20 to 11
                       ((inst & 0x000ff000));        // bit 19.12 to 19.12
-            regs[rd] = pc + 4;
+            if (rd) regs[rd] = pc + 4;
             // sign bit is at (20)
             // check and mask/extend upper 11 bits if set
             if (imm & 0x00100000) 
             {
               imm = imm | 0xffe00000;
+            }
+                        
+            if (debugmode && counter < maxcnt)
+            {
+              printf("jal imm %x\n", imm);
             }
 
             // subtract 4 to compensate for shared pc increment
@@ -681,11 +792,18 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
               imm = imm | 0xfffff000;
             }
 
-            regs[rd] = pc +4;
+            if (rd) regs[rd] = pc +4;
             int target = regs[rs1] + imm;
 
             // mask out least signicant bit
             target = target & 0xfffffffe;
+                        
+            if (debugmode && counter < maxcnt)
+            {
+              printf("jalr imm %x rs1 %d\n", imm, rs1);
+              printf("rs1 %d\n", regs[rs1]);
+              printf("target %x\n", target);
+            }
 
             // subtract 4 to compensate for shared pc increment
             pc = target - 4;
@@ -696,12 +814,22 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
           {
             // ecall
             int call_type = regs[17];
+                        
+            if (debugmode && counter < maxcnt)
+            {
+              printf("ecall %d\n", call_type);
+            }
+
             switch(call_type)
             {
               case 1:
               {
                 int c = getchar();
                 // A7
+                if (debugmode && counter < maxcnt)
+                {
+                  printf("ecall getchar %x\n", c);
+                }
                 regs[17] = c;
               }
               break;
@@ -710,6 +838,10 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
               {
                 // A6
                 int c = regs[16];
+                if (debugmode && counter < maxcnt)
+                {
+                  printf("ecall putchar %x\n", c);
+                }
                 putchar(c);
               }
               break;
@@ -717,10 +849,18 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
               case 3:
               case 93:
               {
+                if (debugmode)
+                {
+                  printf("ecall exit %d\n", call_type);
+                }
+
                 counter += 1;
                 pc += 4;
-                return counter;
+                continue_flag = 0;
               }
+
+              default:
+                break;
             }
           }
           break;
@@ -730,22 +870,28 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
             continue_flag = 0;
             if (debugmode)
             {
-              printf("invalid instruction: %x (%x)", opcode, inst);
+              printf("invalid instruction: %x (%x)\n", opcode, inst);
             }
           }
           break;
       }
-
-      //check pc alignment
-      if(pc & 0x3)
+      
+      if (continue_flag)
       {
-        // if pc is not 32 bit aligned then exit 
-        continue_flag = 0; 
+        //check pc alignment
+        if(pc & 0x3)
+        {
+          // if pc is not 32 bit aligned then exit 
+          continue_flag = 0; 
+        }
+        // increment pc and counter after instruction
+        pc += 4;
+        counter += 1;
       }
-
-      // increment pc and counter after instruction
-      pc += 4;
-      counter += 1;
+    }
+    if (debugmode)
+    {
+      printf("ending - continue_flag %d\n", continue_flag);
     }
     return counter;
 }
